@@ -47,10 +47,13 @@ void DaikinClimate::transmit_state() {
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
 
-
   if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
     remote_state[COMFORT_ID] = 0x10;
     this->preset_comfort_();
+  }
+
+  if (this->mode == climate::CLIMATE_MODE_DRY) {
+    this->fan_mode = climate::CLIMATE_FAN_AUTO;
   }
 
   // Vertical swing covered in fan speed.
