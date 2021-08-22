@@ -24,6 +24,7 @@ Model = daikin_ns.enum("Model")
 MODELS = {
     "ARC470A1": Model.MODEL_ARC470A1,
     "ARC432A14": Model.MODEL_ARC432A14,
+    "ARC452A21": Model.MODEL_ARC452A21,
 }
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(

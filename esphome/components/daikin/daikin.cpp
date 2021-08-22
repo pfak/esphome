@@ -10,19 +10,19 @@ static const char *const TAG = "daikin.climate";
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {
     // First Frame
-    0x11, 0xDA, 0x27, 0x00, 0xC5, // Header [0-4]
+    0x11, 0xDA, 0x27, 0x00, DAIKIN_FIRST_FRAME_HEADER, // Header [0-4]
     0x00, // [5]
     0x00, // Comfort: 0x00 = Off, 0x10 = On [6]
     0x00, // Checksum [7]
 
     // Time Frame
-    0x11, 0xDA, 0x27, 0x00, 0x42, // Header [8-12]
+    0x11, 0xDA, 0x27, 0x00, DAIKIN_TIME_FRAME_HEADER, // Header [8-12]
     0x49, // Current time (mins past midnight) [13]
     0x05, // Day of the week (SUN=1, MON=2, ..., SAT=7) [14]
     0xA2, // Checksum (Hardcoded) [15]
 
     // State Frame
-    0x11, 0xDA, 0x27, 0x00, 0x00, // Header [16-20]
+    0x11, 0xDA, 0x27, 0x00, DAIKIN_STATE_FRAME_HEADER, // Header [16-20]
     0x00, // Operation Mode [21]
     0x00, // Temperature [22]
     0x00, // [23]
@@ -38,22 +38,25 @@ void DaikinClimate::transmit_state() {
     0x00, // [33]
     0x00 // Checksum [34]
   };
+  // Set defaults based on mdoel
+  if (model_ == MODEL_ARC452A21) {
+    remote_state[ECO_ID] = 0x80;
+    remote_state[31] = 0xC1; // Don't know what this is for, but ARC452A21 sends it as this value; and it's static.
+  }
 
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
+
+
+  if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
+    remote_state[COMFORT_ID] = 0x10;
+    this->preset_comfort_();
+  }
+
   // Vertical swing covered in fan speed.
   uint16_t fan_speed = this->fan_speed_();
   remote_state[24] = fan_speed >> 8;
   remote_state[25] = fan_speed & 0xff;
-  if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
-    remote_state[COMFORT_ID] = 0x10;
-
-    if (this->swing_mode == climate::CLIMATE_SWING_BOTH) {
-      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-    } else if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
-  }
 
   if (this->preset == climate::CLIMATE_PRESET_BOOST) {
     remote_state[BOOST_ID] = 0x01;
@@ -78,7 +81,7 @@ void DaikinClimate::transmit_state() {
     remote_state[7] += remote_state[i];
   }
 
-  if (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL) {
+  if (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL && model_ != MODEL_ARC452A21) { // this code is redundant?
     remote_state[SWING_HORIZONTAL_ID] |= 0xF0;
   }
 
@@ -136,7 +139,8 @@ void DaikinClimate::transmit_state() {
 }
 
 uint8_t DaikinClimate::operation_mode_() {
-  uint8_t operating_mode = DAIKIN_MODE_ON;
+
+  uint8_t operating_mode = (model_ = MODEL_ARC452A21) ? 0x09 : DAIKIN_MODE_ON;
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       operating_mode |= DAIKIN_MODE_COOL;
@@ -218,12 +222,10 @@ void DaikinClimate::parse_first_frame_(const uint8_t frame[]) {
 
   if (frame[COMFORT_ID] == 0x10) {
     this->preset = climate::CLIMATE_PRESET_COMFORT;
-
-    if (this->swing_mode == climate::CLIMATE_SWING_BOTH) {
-      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-    } else if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
+    this->preset_comfort_();
+  }
+  else if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
+    this->preset = climate::CLIMATE_PRESET_NONE;
   }
 }
 
@@ -309,6 +311,16 @@ void DaikinClimate::preset_boost_timeout_() {
         this->preset = climate::CLIMATE_PRESET_NONE;
         this->publish_state();
     });
+}
+
+void DaikinClimate::preset_comfort_() {
+  if (this->swing_mode == climate::CLIMATE_SWING_BOTH) {
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+    } else if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+    }
+
+    this->fan_mode = climate::CLIMATE_FAN_AUTO;
 }
 
 bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
@@ -418,6 +430,7 @@ bool DaikinClimate::allow_preset(climate::ClimatePreset preset) const {
         ESP_LOGD(TAG, "ECO preset is not available in FAN_ONLY mode");
       }
       break;
+    case climate::CLIMATE_PRESET_COMFORT:
     case climate::CLIMATE_PRESET_NONE:
       return true;
     case climate::CLIMATE_PRESET_BOOST:
@@ -430,10 +443,30 @@ bool DaikinClimate::allow_preset(climate::ClimatePreset preset) const {
 }
 
 uint8_t DaikinClimate::temperature_min_() {
-  return (model_ == MODEL_ARC470A1) ? DAIKIN_ARC470A1_TEMP_MIN : DAIKIN_ARC432A14_TEMP_MIN;
+  switch(model_) {
+    case MODEL_ARC470A1: 
+      return DAIKIN_ARC470A1_TEMP_MIN;
+    case MODEL_ARC432A14:
+      return DAIKIN_ARC432A14_TEMP_MIN;
+    case MODEL_ARC452A21:
+      return DAIKIN_ARC452A21_TEMP_MIN;
+    default:
+      break;
+  }
+  return 0;
 }
 uint8_t DaikinClimate::temperature_max_() {
-  return (model_ == MODEL_ARC470A1) ? DAIKIN_ARC470A1_TEMP_MAX : DAIKIN_ARC432A14_TEMP_MAX;
+  switch(model_) {
+    case MODEL_ARC470A1: 
+      return DAIKIN_ARC470A1_TEMP_MAX;
+    case MODEL_ARC432A14:
+      return DAIKIN_ARC432A14_TEMP_MAX;
+    case MODEL_ARC452A21:
+      return DAIKIN_ARC452A21_TEMP_MAX;
+    default:
+      break;
+  }
+  return 0;
 }
 
 climate::ClimateTraits DaikinClimate::traits() {

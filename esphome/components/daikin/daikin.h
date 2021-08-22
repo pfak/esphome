@@ -8,6 +8,7 @@ namespace daikin {
 enum Model {
   MODEL_ARC470A1 = 0,  /// Temperature range is from 10 to 30
   MODEL_ARC432A14 = 1,  /// Temperature range is from 18 to 32
+  MODEL_ARC452A21 = 2
 };
 
 
@@ -18,6 +19,8 @@ const uint8_t DAIKIN_ARC470A1_TEMP_MAX = 30;
 const uint8_t DAIKIN_ARC470A1_TEMP_MIN = 10;
 const uint8_t DAIKIN_ARC432A14_TEMP_MAX = 32;
 const uint8_t DAIKIN_ARC432A14_TEMP_MIN = 18;
+const uint8_t DAIKIN_ARC452A21_TEMP_MAX = 32;
+const uint8_t DAIKIN_ARC452A21_TEMP_MIN = 18;
 
 // Modes
 const uint8_t DAIKIN_MODE_AUTO = 0x00;
@@ -66,15 +69,16 @@ static const uint8_t HEADER_ID = 3;
 static const uint8_t MESSAGE_ID = 4;
 // MODE_POWER_TIMERS_ID = 5
 static const uint8_t COMFORT_ID = 6;
-static const uint8_t SWING_VERTICAL_ID = (DAIKIN_STATE_FRAME_OFFSET + 8);
-static const uint8_t SWING_HORIZONTAL_ID = (DAIKIN_STATE_FRAME_OFFSET + 9);
-static const uint8_t TIMER_A_ID = (DAIKIN_STATE_FRAME_OFFSET + 10);
-static const uint8_t TIMER_B_ID = (DAIKIN_STATE_FRAME_OFFSET + 11);
-static const uint8_t TIMER_C_ID = (DAIKIN_STATE_FRAME_OFFSET + 12);
-static const uint8_t BOOST_ID = (DAIKIN_STATE_FRAME_OFFSET + 13);
-// ? = 14
-// ? = 15
-static const uint8_t ECO_ID = (DAIKIN_STATE_FRAME_OFFSET + 16);
+
+static const uint8_t SWING_VERTICAL_ID = (DAIKIN_STATE_FRAME_OFFSET + 8);   // 24
+static const uint8_t SWING_HORIZONTAL_ID = (DAIKIN_STATE_FRAME_OFFSET + 9); // 25
+static const uint8_t TIMER_A_ID = (DAIKIN_STATE_FRAME_OFFSET + 10);         // 26
+static const uint8_t TIMER_B_ID = (DAIKIN_STATE_FRAME_OFFSET + 11);         // 27
+static const uint8_t TIMER_C_ID = (DAIKIN_STATE_FRAME_OFFSET + 12);         // 28
+static const uint8_t BOOST_ID = (DAIKIN_STATE_FRAME_OFFSET + 13);           // 29
+// ? = 14 // 30
+// ? = 15 // 31
+static const uint8_t ECO_ID = (DAIKIN_STATE_FRAME_OFFSET + 16); // 32
 
 class DaikinClimate : public climate_ir::ClimateIR {
  public:
@@ -117,6 +121,7 @@ class DaikinClimate : public climate_ir::ClimateIR {
   bool traits_preset_boost_{false};
 
   void preset_boost_timeout_();
+  void preset_comfort_();
   uint8_t temperature_min_();
   uint8_t temperature_max_();
   Model model_;
